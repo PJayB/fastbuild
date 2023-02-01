@@ -1,0 +1,93 @@
+// Clang 14.x.x
+//------------------------------------------------------------------------------
+//
+// Detect Clang
+//
+// We search in the following locations, in order of preference:
+//  1) Vendorized in External (side by side with this bff)
+//  2) Default install location
+//
+#if file_exists( "14.0.6/bin/clang-cl.exe" )
+    // Vendorized
+    .Clang14_BasePath   = '$_CURRENT_BFF_DIR_$/14.0.6'
+    .Clang14_Version    = '14.0.6'
+#else
+    #if file_exists( "/usr/lib/llvm-14/bin/clang" )
+        // Installed to system root
+        .Clang14_BasePath = '/usr/lib/llvm-14/bin'
+        .Clang14_Version  = '14.x.x'
+    #else
+    	//
+    	// Failed
+    	//
+    	Print( '----------------------------------------------------------------------' )
+    	Print( '- Unable to auto-detect Clang - please specify installation manually -' )
+    	Print( '----------------------------------------------------------------------' )
+    	.Clang14_BasePath = .Set_Path_Here    // <-- Set path here
+    #endif
+#endif
+
+// Print details of used version. TODO:C Move to Clang.bff
+Print( 'Using Clang $Clang14_Version$ from $Clang14_BasePath$' )
+
+// Compiler
+//------------------------------------------------------------------------------
+Compiler( 'Compiler-Clang14' )
+{
+    .Root                           = '$Clang14_BasePath$'
+    .Executable                     = '$Root$/clang'
+
+    // Allow tests to activate some experimental behavior
+    #if ENABLE_RELATIVE_PATHS
+        .UseRelativePaths_Experimental = true
+    #endif
+    #if ENABLE_SOURCE_MAPPING
+        .SourceMapping_Experimental = '/fastbuild-test-mapping'
+    #endif
+}
+
+// ToolChain
+//------------------------------------------------------------------------------
+.ToolChain_Clang_Linux =
+[
+    .Platform                       = 'x64ClangLinux'
+
+    // Compiler Options
+    .Compiler                       = 'Compiler-Clang14'
+    .CommonCompilerOptions          = ' -o "%2" "%1"'   // Input/Output
+                                    + ' -c'             // Compile only
+                                    + ' -g'             // Generate debug info
+                                    + ' -m64'           // x86_64
+                                    + ' -D__LINUX__'    // Platform define
+                                    + ' -D__X64__'      // Architecture define
+
+                                    // Include paths
+                                    + ' -I./'
+
+                                    // Enable warnings
+                                    + ' -Wall -Werror -Wfatal-errors'   // warnings as errors
+                                    + ' -Wextra'
+                                    + ' -Wshadow'
+
+    .CompilerOptions                = ' -std=c++11 $CommonCompilerOptions$'
+                                    + ' -Wno-invalid-offsetof' // we get the offset of members in non-POD types
+    .CompilerOptionsC               = ' -x c $CommonCompilerOptions$'
+
+    // Librarian
+    .Librarian                      = '$Clang14_BasePath$/llvm-ar'
+    .LibrarianOptions               = 'rcs "%2" "%1"'
+
+    // Linker
+    .Linker                         = '$Clang14_BasePath$/clang++'
+    .LinkerOptions                  = '"%1" -o "%2"'
+
+    // File Extensions
+    .LibExtension                   = '.a'
+    .ExeExtension                   = ''
+
+    // Exception Control
+    .UseExceptions                  = ' -fexceptions'
+]
+
+//------------------------------------------------------------------------------
+
